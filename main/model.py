@@ -10,6 +10,7 @@ import os
 import cv2
 import torch
 from PIL import Image
+from selfattentionmodel import MultiHeadSelfAttention
 
 train_img_files = os.listdir('./falldetection/fall_dataset/images/train')
 train_img_files.sort()
@@ -47,139 +48,7 @@ df = pd.DataFrame()
 df['Images'] = complete_images
 df['Class'] = complete_class
 df['Images']/=255
-####
-class MultiHeadSelfAttention(Layer):
-    """
-    Multi-Head Self Attention Layer.
 
-    This layer implements the multi-head self-attention mechanism used in transformers.
-    It projects the input into multiple heads, performs scaled dot-product attention
-    on each head, and then concatenates and projects the results.
-
-    Attributes:
-        embed_dim: Dimensionality of the embedding.
-        num_heads: Number of attention heads.
-        dropout_rate: Dropout rate for regularization.
-    """
-
-    def __init__(self, embed_dim=256, num_heads=8, dropout_rate=0.1):
-        """
-        Initialize the layer.
-
-        Args:
-            embed_dim: Dimensionality of the embedding.
-            num_heads: Number of attention heads.
-            dropout_rate: Dropout rate for regularization.
-        """
-        super(MultiHeadSelfAttention, self).__init__()
-        self.num_heads = num_heads
-        self.embed_dim = embed_dim
-        self.dropout_rate = dropout_rate
-
-        if embed_dim % num_heads != 0:
-            raise ValueError(f"embedding dimension = {embed_dim} should be divisible by number of heads = {num_heads}")
-
-        self.projection_dim = embed_dim // num_heads
-
-        # Define dense layers for query, key, and value projections
-        self.query_dense = Dense(embed_dim)
-        self.key_dense = Dense(embed_dim)
-        self.value_dense = Dense(embed_dim)
-
-        # Define dense layer to combine the heads
-        self.combine_heads = Dense(embed_dim)
-
-        # Define dropout and layer normalization layers
-        self.dropout = Dropout(dropout_rate)
-        self.layernorm = LayerNormalization(epsilon=1e-6)
-
-    def attention(self, query, key, value):
-        """
-        Compute scaled dot-product attention.
-
-        Args:
-            query: Query tensor.
-            key: Key tensor.
-            value: Value tensor.
-
-        Returns:
-            attention: Result of the attention mechanism.
-        """
-        score = tf.matmul(query, key, transpose_b=True)  # Calculate dot product
-        dim_key = tf.cast(tf.shape(key)[-1], tf.float32)  # Get dimension of key
-        scaled_score = score / tf.math.sqrt(dim_key)  # Scale the scores
-        weights = tf.nn.softmax(scaled_score, axis=-1)  # Apply softmax to get attention weights
-        attention = tf.matmul(weights, value)  # Multiply weights with values
-        return attention
-
-    def separate_heads(self, x, batch_size):
-        """
-        Separate the heads for multi-head attention.
-
-        Args:
-            x: Input tensor.
-            batch_size: Batch size of the input.
-
-        Returns:
-            x: Tensor with separated heads.
-        """
-        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.projection_dim))
-        return tf.transpose(x, perm=[0, 2, 1, 3])
-
-    def call(self, inputs):
-        """
-        Forward pass for the layer.
-
-        Args:
-            inputs: Input tensor.
-
-        Returns:
-            output: Output tensor after applying multi-head self-attention.
-        """
-        batch_size = tf.shape(inputs)[0]
-
-        # Project inputs to query, key, and value tensors
-        query = self.query_dense(inputs)
-        key = self.key_dense(inputs)
-        value = self.value_dense(inputs)
-
-        # Separate the heads for multi-head attention
-        query = self.separate_heads(query, batch_size)
-        key = self.separate_heads(key, batch_size)
-        value = self.separate_heads(value, batch_size)
-
-        # Compute attention
-        attention = self.attention(query, key, value)
-
-        # Concatenate the heads and reshape the tensor
-        attention = tf.transpose(attention, perm=[0, 2, 1, 3])
-        concat_attention = tf.reshape(attention, (batch_size, -1, self.embed_dim))
-
-        # Combine heads and apply dropout and layer normalization
-        output = self.combine_heads(concat_attention)
-        output = self.dropout(output)
-        output = self.layernorm(inputs + output)
-
-        # Reduce mean across the time dimension to get fixed-size output
-        output = tf.reduce_mean(output, axis=1)
-        return output
-
-    def compute_output_shape(self, input_shape):
-        """
-        Compute the output shape of the layer.
-
-        Args:
-            input_shape: Shape of the input tensor.
-
-        Returns:
-            Output shape.
-        """
-        return input_shape[0], self.embed_dim
-
-
-    def compute_output_shape(self, input_shape):
-        return input_shape[0], self.embed_dim
-######
 #model
 def Conv_2D_Block(x, model_width, kernel, strides=(1, 1), padding="same"):
     # 2D Convolutional Block with BatchNormalization
