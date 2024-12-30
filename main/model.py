@@ -10,7 +10,7 @@ import os
 import cv2
 import torch
 from PIL import Image
-from selfattentionmodel import MultiHeadSelfAttention
+from selfattentionmodel import MultiHeadAttention
 
 train_img_files = os.listdir('./falldetection/fall_dataset/images/train')
 train_img_files.sort()
@@ -208,7 +208,7 @@ class SEInception_ResNet:
             x = tf.keras.layers.GlobalMaxPooling2D()(x)
         x = tf.keras.layers.Flatten()(x)
         x = tf.keras.layers.Dense(512, activation='relu')(x)
-        x = MultiHeadSelfAttention(embed_dim=512, num_heads=8)(x)
+        x = MultiHeadAttention(embed_dim=512, num_heads=8)(x)
         x = tf.keras.layers.Dense(512, activation='relu')(x)
 
         if self.dropout_rate:
